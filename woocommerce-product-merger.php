@@ -62,12 +62,22 @@ class WC_Product_Merger {
 	 */
 	private function init_hooks() {
 		// Check if WooCommerce is active.
-		add_action( 'plugins_loaded', array( $this, 'check_woocommerce' ) );
+		add_action( 'plugins_loaded', array( $this, 'check_woocommerce' ), 20 );
 		
-		// Admin hooks.
+		// Admin hooks - only register after WooCommerce check.
 		if ( is_admin() ) {
 			add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
 			add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_scripts' ) );
+			// Register AJAX handlers after plugins_loaded to ensure classes are available.
+			add_action( 'wp_loaded', array( $this, 'register_ajax_handlers' ) );
+		}
+	}
+	
+	/**
+	 * Register AJAX handlers.
+	 */
+	public function register_ajax_handlers() {
+		if ( class_exists( 'WCPM_Similarity_Detector' ) && class_exists( 'WCPM_Product_Merger' ) ) {
 			add_action( 'wp_ajax_wcpm_get_recommendations', array( $this, 'ajax_get_recommendations' ) );
 			add_action( 'wp_ajax_wcpm_merge_products', array( $this, 'ajax_merge_products' ) );
 		}
@@ -83,8 +93,16 @@ class WC_Product_Merger {
 		}
 		
 		// Include required files.
-		require_once WCPM_PLUGIN_DIR . 'includes/class-wcpm-similarity-detector.php';
-		require_once WCPM_PLUGIN_DIR . 'includes/class-wcpm-product-merger.php';
+		$similarity_file = WCPM_PLUGIN_DIR . 'includes/class-wcpm-similarity-detector.php';
+		$merger_file = WCPM_PLUGIN_DIR . 'includes/class-wcpm-product-merger.php';
+		
+		if ( file_exists( $similarity_file ) ) {
+			require_once $similarity_file;
+		}
+		
+		if ( file_exists( $merger_file ) ) {
+			require_once $merger_file;
+		}
 	}
 	
 	/**
@@ -102,6 +120,11 @@ class WC_Product_Merger {
 	 * Add admin menu.
 	 */
 	public function add_admin_menu() {
+		// Only add menu if WooCommerce is active.
+		if ( ! class_exists( 'WooCommerce' ) ) {
+			return;
+		}
+		
 		add_submenu_page(
 			'woocommerce',
 			__( 'Product Merger', 'wc-product-merger' ),
@@ -156,7 +179,12 @@ class WC_Product_Merger {
 	 * Render admin page.
 	 */
 	public function render_admin_page() {
-		include WCPM_PLUGIN_DIR . 'templates/admin-page.php';
+		$template_file = WCPM_PLUGIN_DIR . 'templates/admin-page.php';
+		if ( file_exists( $template_file ) ) {
+			include $template_file;
+		} else {
+			echo '<div class="wrap"><h1>Error</h1><p>Template file not found.</p></div>';
+		}
 	}
 	
 	/**
@@ -167,6 +195,10 @@ class WC_Product_Merger {
 		
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'wc-product-merger' ) ) );
+		}
+		
+		if ( ! class_exists( 'WCPM_Similarity_Detector' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Plugin classes not loaded. Please ensure WooCommerce is active.', 'wc-product-merger' ) ) );
 		}
 		
 		$detector = new WCPM_Similarity_Detector();
@@ -183,6 +215,10 @@ class WC_Product_Merger {
 		
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'wc-product-merger' ) ) );
+		}
+		
+		if ( ! class_exists( 'WCPM_Product_Merger' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Plugin classes not loaded. Please ensure WooCommerce is active.', 'wc-product-merger' ) ) );
 		}
 		
 		$product_ids = isset( $_POST['product_ids'] ) ? array_map( 'intval', $_POST['product_ids'] ) : array();
