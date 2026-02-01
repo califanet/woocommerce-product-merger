@@ -20,9 +20,9 @@ class WCPM_Similarity_Detector {
 	 * @return array Array of recommendation groups.
 	 */
 	public function get_recommendations() {
-		 = $this->get_simple_products();
-		 = array();
-		 = array();
+		$products = $this->get_simple_products();
+		$groups = array();
+		$processed = array();
 		
 		foreach ( $products as $product_id => $product_data ) {
 			if ( in_array( $product_id, $processed, true ) ) {
